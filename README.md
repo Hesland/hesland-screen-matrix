@@ -13,6 +13,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Platform-Linux%20Mint%20(Cinnamon%20%7C%20X11)-brightgreen.svg" alt="Platform">
   <img src="https://img.shields.io/badge/Companion-Windows%2010%2F11-blue.svg" alt="Companion OS">
+  <img src="https://img.shields.io/badge/Edition-Full%20GUI%20%7C%20Terminal--Only-orange.svg" alt="Editions">
   <img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License">
 </p>
 
@@ -41,6 +42,52 @@ ScreenMatrix coordinates X11/RandR, Cinnamon desktop layouts, Barrier KVM softwa
 
 ---
 
+### 💻 Terminal-Only Edition (Zero GUI Dependencies)
+
+For headless servers, minimal window managers (i3, bspwm, sway, tmux), or command-line power users, ScreenMatrix provides a **Terminal-Only Edition** that requires **0 GTK / PyGObject dependencies**:
+
+#### 1. Quick Install (Terminal Only)
+```bash
+git clone https://github.com/Hesland/hesland-screen-matrix.git
+cd hesland-screen-matrix
+chmod +x install-terminal-only.sh
+./install-terminal-only.sh
+```
+
+#### 2. Interactive Terminal Dashboard (TUI)
+Simply run `screen-matrix` without flags (or `screen-matrix --tui`) to launch a colorized ASCII control panel directly inside your terminal:
+```text
+╔════════════════════════════════════════════════════════════════════════════╗
+║              🖥️  Hesland ScreenMatrix (Terminal-Only TUI)                  ║
+║      Cross-System Dual-PC Display Synergy Hub for Linux Mint + Windows     ║
+╠════════════════════════════════════════════════════════════════════════════╣
+║  [1] Mode 1: Linux Mint Native Dual-Screen (3440x1440 60Hz)      [ACTIVE]  ║
+║  [2] Mode 2: Native Dual-OS KVM (Windows 240Hz + Barrier)                  ║
+║  [3] Mode 3: Linux Mint as Windows Extended Display (Stream)               ║
+╠════════════════════════════════════════════════════════════════════════════╣
+║  Placement   :  [R] Right (*)   /   [L] Left                               ║
+║  Mode 3 Audio:  [W] Windows Only (*) | [B] Both | [M] Linux Mint           ║
+║  Win Key Fwd :  [K] Enabled (Always)                                       ║
+║  Language    :  [G] EN (Toggle English / 中文)                             ║
+╠════════════════════════════════════════════════════════════════════════════╣
+║  Actions: [C] Cycle Mode  |  [T] Toggle Mode 1&2  |  [S] Status  |  [Q] Quit ║
+╚════════════════════════════════════════════════════════════════════════════╝
+```
+Type numbers or letters (`1`, `2`, `3`, `r`, `l`, `w`, `k`) to change settings on the fly.
+
+#### 3. Windows-Side Terminal CLI Companion
+Run commands directly from Windows PowerShell / Terminal to trigger Linux Mint display modes remotely:
+```powershell
+cd windows
+.\screen-matrix.ps1 1                  # Tell Linux Mint to switch to Mode 1
+.\screen-matrix.ps1 2                  # Switch to Mode 2 (Barrier)
+.\screen-matrix.ps1 3                  # Switch to Mode 3 (Moonlight stream)
+.\screen-matrix.ps1 -Pos right         # Change display placement
+.\screen-matrix.ps1 -Status            # Query Linux Mint configuration JSON
+```
+
+---
+
 ### 🚀 Key Engineering Highlights
 
 1. **Anti-Rollback Display Sync (Mode 1)**:
@@ -56,7 +103,7 @@ ScreenMatrix coordinates X11/RandR, Cinnamon desktop layouts, Barrier KVM softwa
 
 ---
 
-### 📦 Installation (Linux Mint)
+### 📦 Full Installation (With System Tray & GTK GUI)
 
 ```bash
 # Clone the repository
@@ -96,7 +143,8 @@ screen-matrix --audio windows    # Lock audio to Windows physical speakers (Reco
 screen-matrix --audio both       # Simultaneous dual-device audio
 screen-matrix --audio mac        # Linux Mint local speaker only
 
-# GUI & Status
+# Terminal Dashboard & GUI
+screen-matrix                    # Launch interactive terminal TUI dashboard
 screen-matrix --gui              # Open graphical GTK control panel
 screen-matrix --tray             # Launch background tray applet
 screen-matrix --status           # Print configuration JSON
@@ -153,6 +201,40 @@ ScreenMatrix 深度整合 X11/RandR 底层坐标映射、Linux Mint (Cinnamon) �
 
 ---
 
+### 💻 纯终端精简版 (Terminal-Only Edition，零 GUI 依赖)
+
+面向无头开发机（Headless Server）、平铺窗口管理器（i3, bspwm, sway, tmux）或喜欢纯终端工作的极客，ScreenMatrix 提供了**零 GUI / 零 GTK 依赖的纯终端精简版**：
+
+#### 1. 终端精简版一键安装
+```bash
+git clone https://github.com/Hesland/hesland-screen-matrix.git
+cd hesland-screen-matrix
+chmod +x install-terminal-only.sh
+./install-terminal-only.sh
+```
+
+#### 2. 彩色交互式终端控制面板 (TUI Dashboard)
+在终端直接输入 `screen-matrix`（或 `screen-matrix --tui`），即可拉起高质感 ASCII 彩色控制面板：
+- 键盘敲 `1`、`2`、`3`：秒切三大模式；
+- 敲 `r` / `l`：即时切换屏幕左右相对摆放位置；
+- 敲 `w` / `b` / `m`：即时切换声音输出策略；
+- 敲 `k`：开关 Win 键穿透；
+- 敲 `g`：秒切中英双语；
+- 敲 `q`：退出交互。
+
+#### 3. Windows 端纯命令行协同控制
+在 Windows PowerShell 或 Windows Terminal 中直接敲命令，远程调度 Linux Mint 屏幕状态：
+```powershell
+cd windows
+.\screen-matrix.ps1 1                  # 远程通知 Linux Mint 切换形态 1
+.\screen-matrix.ps1 2                  # 远程切换形态 2 (Barrier)
+.\screen-matrix.ps1 3                  # 远程切换形态 3 (Moonlight)
+.\screen-matrix.ps1 -Pos right         # 远程调整副屏左右位置
+.\screen-matrix.ps1 -Status            # 查询当前配置状态
+```
+
+---
+
 ### 🚀 攻克的核心技术难点
 
 1. **彻底解决形态 1 屏幕回滚与错位**：
@@ -168,14 +250,14 @@ ScreenMatrix 深度整合 X11/RandR 底层坐标映射、Linux Mint (Cinnamon) �
 
 ---
 
-### 📦 安装部署 (Linux Mint)
+### 📦 完整版安装部署 (含系统托盘与 GTK 图形面板)
 
 ```bash
 # 克隆仓库
 git clone https://github.com/Hesland/hesland-screen-matrix.git
 cd hesland-screen-matrix
 
-# 执行一键安装
+# 执行完整安装
 chmod +x install.sh
 ./install.sh
 ```

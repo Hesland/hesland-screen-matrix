@@ -16,6 +16,7 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
+  screen-matrix                    # Launch interactive terminal TUI dashboard (0 GUI required)
   screen-matrix 1                  # Mode 1: Linux Mint native dual-screen (3440x1440 60Hz)
   screen-matrix 2                  # Mode 2: Native dual-OS KVM (Windows 240Hz + Barrier share)
   screen-matrix 3                  # Mode 3: Linux Mint as Windows extended screen (Moonlight stream)
@@ -27,8 +28,9 @@ Examples:
   screen-matrix --win-key on       # Mode 3: Forward Win key directly into Windows session
   screen-matrix --lang en          # Set UI/Notification language to English (default)
   screen-matrix --lang zh          # Set UI/Notification language to Chinese
-  screen-matrix --gui              # Open graphical GTK control panel
-  screen-matrix --tray             # Launch system tray applet daemon
+  screen-matrix --tui              # Launch interactive terminal TUI dashboard
+  screen-matrix --gui              # Open graphical GTK control panel (Requires Gtk)
+  screen-matrix --tray             # Launch system tray applet daemon (Requires Gtk/AppIndicator)
   screen-matrix --status           # Display current configuration JSON
 """
     )
@@ -37,21 +39,30 @@ Examples:
     parser.add_argument("--audio", choices=["windows", "mac", "both"], help="Mode 3 audio strategy (windows: Windows speakers only, both: Dual-device, mac: Linux Mint speaker only)")
     parser.add_argument("--win-key", choices=["on", "off"], help="Mode 3 Windows key forwarding switch")
     parser.add_argument("--lang", choices=["en", "zh"], help="Set language: en (English) or zh (Chinese)")
-    parser.add_argument("--gui", action="store_true", help="Launch graphical control panel window")
-    parser.add_argument("--tray", action="store_true", help="Launch system tray applet daemon")
+    parser.add_argument("-i", "--tui", action="store_true", help="Launch interactive terminal dashboard")
+    parser.add_argument("--gui", action="store_true", help="Launch graphical control panel window (GTK)")
+    parser.add_argument("--tray", action="store_true", help="Launch system tray applet daemon (GTK)")
     parser.add_argument("--status", action="store_true", help="Print current status JSON")
 
     args = parser.parse_args()
     cfg = load_config()
 
     if args.gui:
-        from src.gui import main as gui_main
-        gui_main()
+        try:
+            from src.gui import main as gui_main
+            gui_main()
+        except Exception as e:
+            print(f"[Error] Failed to load GTK GUI: {e}")
+            print("Tip: Run in terminal-only mode using: screen-matrix --tui")
         return
 
     if args.tray:
-        from src.tray import main as tray_main
-        tray_main()
+        try:
+            from src.tray import main as tray_main
+            tray_main()
+        except Exception as e:
+            print(f"[Error] Failed to load Tray Applet: {e}")
+            print("Tip: Run in terminal-only mode using: screen-matrix")
         return
 
     if args.status:
@@ -102,6 +113,10 @@ Examples:
             apply_mode(int(args.mode), cfg)
     elif config_changed:
         apply_mode(cfg.get("mode", 1), cfg)
+    elif args.tui or len(sys.argv) == 1:
+        # Launch TUI when run with no arguments or explicitly --tui
+        from src.tui import main as tui_main
+        tui_main()
     else:
         parser.print_help()
 
