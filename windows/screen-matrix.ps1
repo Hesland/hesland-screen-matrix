@@ -4,9 +4,10 @@
 .DESCRIPTION
     Send remote display and input mode-switch commands from Windows to Linux Mint.
 .EXAMPLE
-    .\screen-matrix.ps1 1
-    .\screen-matrix.ps1 2
-    .\screen-matrix.ps1 3
+    .\screen-matrix.ps1 linux-only
+    .\screen-matrix.ps1 linux-win
+    .\screen-matrix.ps1 win-only
+    .\screen-matrix.ps1 terminal-only
     .\screen-matrix.ps1 --pos right
     .\screen-matrix.ps1 --status
 #>
@@ -25,13 +26,15 @@ param(
 
 $argsList = @()
 
+$validModes = @("linux-only", "linux-win", "win-only", "terminal-only", "1", "2", "3", "4")
+
 if ($Status) {
     $argsList += "--status"
 } elseif ($Cycle -or $Command -eq "cycle") {
     $argsList += "cycle"
 } elseif ($Toggle -or $Command -eq "toggle") {
     $argsList += "toggle"
-} elseif ($Command -in @("1", "2", "3")) {
+} elseif ($Command -in $validModes) {
     $argsList += $Command
 }
 
@@ -47,7 +50,7 @@ $argStr = $argsList -join " "
 
 if (-not $argStr) {
     Write-Host "Hesland ScreenMatrix Windows CLI" -ForegroundColor Cyan
-    Write-Host "Usage: .\screen-matrix.ps1 [1|2|3|cycle|toggle] [-Pos right|left] [-Audio windows|both|mac] [-Status]"
+    Write-Host "Usage: .\screen-matrix.ps1 [linux-only|linux-win|win-only|terminal-only] [-Pos right|left] [-Audio windows|both|mac] [-Status]"
     exit 0
 }
 

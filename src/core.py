@@ -1,7 +1,7 @@
 import os
 import subprocess
 import time
-from .config import load_config, save_config
+from .config import load_config, save_config, normalize_mode
 from .i18n import t
 
 def run_cmd(cmd, env=None, background=False):
@@ -29,7 +29,9 @@ def get_target_port():
     return port if port else "DP-1"
 
 def notify_windows(mode_num, win_ip="192.168.1.100"):
-    cmd = f'ssh -o ConnectTimeout=2 -o BatchMode=yes hesland@{win_ip} "powershell -ExecutionPolicy Bypass -File C:/Users/Hesland/set_win_mode.ps1 -Mode {mode_num}"'
+    # mode_num maps to Windows set_win_mode.ps1: 1, 2, 3 (terminal-only maps to 2)
+    win_mode = 2 if mode_num in [2, 4, "linux-win", "terminal-only"] else (1 if mode_num in [1, "linux-only"] else 3)
+    cmd = f'ssh -o ConnectTimeout=2 -o BatchMode=yes hesland@{win_ip} "powershell -ExecutionPolicy Bypass -File C:/Users/Hesland/set_win_mode.ps1 -Mode {win_mode}"'
     run_cmd(cmd, background=True)
 
 def generate_barrier_conf(pos="right", cfg=None):
@@ -68,6 +70,7 @@ section: options
     switchCornerSize = 0
     keystroke(Control+Alt+s) = switchToScreen(HESLAND-R5-5600)
     keystroke(Control+Alt+a) = switchToScreen(hesland-MacBookPro)
+    keystroke(Control+Alt+space) = switchInDirection(right)
 end
 """
     with open(conf_path, "w", encoding="utf-8") as f:
@@ -79,10 +82,10 @@ end
         
     return tip
 
-def apply_mode_1(cfg=None):
+def apply_mode_linux_only(cfg=None):
     if cfg is None:
         cfg = load_config()
-    cfg["mode"] = 1
+    cfg["mode"] = "linux-only"
     save_config(cfg)
     
     run_cmd("pkill -f barrier_daemon.sh || true; pkill -f barriers || true; systemctl --user stop barriers-server.service 2>/dev/null || true")
@@ -93,7 +96,6 @@ def apply_mode_1(cfg=None):
     target_port = get_target_port()
     pos = cfg.get("secondary_position", cfg.get("mac_position", "right"))
     
-    # Keep 100% in sync with Cinnamon monitors config
     if pos == "right":
         xrandr_cmd = (
             f"xrandr --output {target_port} --primary --mode {cfg.get('ultrawide_res', '3440x1440')} --rate {cfg.get('ultrawide_rate', '60')} --pos 0x0 "
@@ -118,10 +120,10 @@ def apply_mode_1(cfg=None):
         
     notify(t("notif_m1_title", cfg), t("notif_m1_msg", cfg), "video-display")
 
-def apply_mode_2(cfg=None):
+def apply_mode_linux_win(cfg=None):
     if cfg is None:
         cfg = load_config()
-    cfg["mode"] = 2
+    cfg["mode"] = "linux-win"
     save_config(cfg)
     
     run_cmd("pkill -f moonlight || true; pkill -f Moonlight.AppImage || true")
@@ -146,10 +148,10 @@ def apply_mode_2(cfg=None):
         
     notify(t("notif_m2_title", cfg), t("notif_m2_msg", cfg, pos=pos_desc, tip=tip), "input-keyboard")
 
-def apply_mode_3(cfg=None):
+def apply_mode_win_only(cfg=None):
     if cfg is None:
         cfg = load_config()
-    cfg["mode"] = 3
+    cfg["mode"] = "win-only"
     save_config(cfg)
     
     run_cmd("pkill -f barrier_daemon.sh || true; pkill -f barriers || true; systemctl --user stop barriers-server.service 2>/dev/null || true")
@@ -199,18 +201,57 @@ def apply_mode_3(cfg=None):
         
     notify(t("notif_m3_title", cfg), t("notif_m3_msg", cfg, audio_tip=audio_tip, key_tip=key_tip), "video-display")
 
-def cycle_mode():
-    cfg = load_config()
-    cur = cfg.get("mode", 1)
-    next_mode = 2 if cur == 1 else (3 if cur == 2 else 1)
-    apply_mode(next_mode, cfg)
-
-def apply_mode(mode_num, cfg=None):
+def apply_mode_terminal_only(cfg=None):
     if cfg is None:
         cfg = load_config()
-    if mode_num == 1:
-        apply_mode_1(cfg)
-    elif mode_num == 2:
-        apply_mode_2(cfg)
-    elif mode_num == 3:
-        apply_mode_3(cfg)
+    cfg["mode"] = "terminal-only"
+    save_config(cfg)
+    
+    # 1. 关闭 Moonlight 串流
+    run_cmd("pkill -f moonlight || true; pkill -f Moonlight.AppImage || true")
+    
+    # 2. 释放外接带鱼屏给 Windows 独占 240Hz
+    target_port = get_target_port()
+    run_cmd(f"xrandr --output {target_port} --off")
+    run_cmd(f"xrandr --output eDP-1 --primary --mode {cfg.get('secondary_res', '2560x1600')} --rate {cfg.get('secondary_rate', '59.97')}")
+    
+    # 3. 配置 Barrier (双向共享剪贴板 + 快捷键交替切换主控)
+    pos = cfg.get("secondary_position", cfg.get("mac_position", "right"))
+    tip = generate_barrier_conf(pos, cfg)
+    run_cmd("systemctl --user restart barriers-server.service 2>/dev/null || { pkill -f barriers || true; ~/.config/barrier/start_server.sh; }")
+    
+    # 4. 通知 Windows 启动 BarrierClient
+    notify_windows(2, cfg.get("windows_ip", "192.168.1.100"))
+    
+    # 5. 在 Linux Mint 本机全屏沉浸拉起终端会话
+    run_cmd("x-terminal-emulator --fullscreen >/dev/null 2>&1 &", background=True)
+    
+    mode_file = os.path.expanduser("~/.screenlayout/current_mode")
+    with open(mode_file, "w") as f:
+        f.write("4\n")
+        
+    notify(t("notif_m4_title", cfg), t("notif_m4_msg", cfg), "utilities-terminal")
+
+def cycle_mode():
+    cfg = load_config()
+    cur = normalize_mode(cfg.get("mode"))
+    mode_flow = ["linux-only", "linux-win", "win-only", "terminal-only"]
+    try:
+        idx = mode_flow.index(cur)
+        next_mode = mode_flow[(idx + 1) % len(mode_flow)]
+    except ValueError:
+        next_mode = "linux-only"
+    apply_mode(next_mode, cfg)
+
+def apply_mode(mode_val, cfg=None):
+    mode_name = normalize_mode(mode_val)
+    if cfg is None:
+        cfg = load_config()
+    if mode_name == "linux-only":
+        apply_mode_linux_only(cfg)
+    elif mode_name == "linux-win":
+        apply_mode_linux_win(cfg)
+    elif mode_name == "win-only":
+        apply_mode_win_only(cfg)
+    elif mode_name == "terminal-only":
+        apply_mode_terminal_only(cfg)

@@ -3,7 +3,7 @@ import sys
 import gi
 
 gi.require_version('Gtk', '3.0')
-from gi.repository import Gtk, GLib
+from gi.repository import Gtk
 
 try:
     gi.require_version('AyatanaAppIndicator3', '0.1')
@@ -12,7 +12,7 @@ try:
 except Exception:
     HAS_APP_INDICATOR = False
 
-from .config import load_config, save_config
+from .config import load_config, save_config, normalize_mode
 from .core import apply_mode, cycle_mode
 from .i18n import t
 
@@ -21,8 +21,6 @@ APP_INDICATOR_ID = "screen_matrix_tray"
 class ScreenMatrixTray:
     def __init__(self):
         self.config = load_config()
-        self.current_mode = self.config.get("mode", 1)
-        
         self.menu = Gtk.Menu()
         self.build_menu()
         
@@ -40,37 +38,43 @@ class ScreenMatrixTray:
             self.status_icon.set_tooltip_text("Hesland ScreenMatrix")
 
     def get_icon_name(self):
-        mode = self.config.get("mode", 1)
-        if mode == 1:
+        mode = normalize_mode(self.config.get("mode"))
+        if mode == "linux-only":
             return "video-display"
-        elif mode == 2:
+        elif mode == "linux-win":
             return "input-keyboard"
-        else:
+        elif mode == "win-only":
             return "preferences-desktop-display"
+        else:
+            return "utilities-terminal"
 
     def build_menu(self):
         for item in self.menu.get_children():
             self.menu.remove(item)
 
         cfg = self.config
-        cur_mode = cfg.get("mode", 1)
+        cur_mode = normalize_mode(cfg.get("mode"))
         cur_pos = cfg.get("secondary_position", cfg.get("mac_position", "right"))
         cur_audio = cfg.get("mode3_audio", "windows_only")
         cur_win_key = cfg.get("capture_win_key", True)
         cur_lang = cfg.get("lang", "en")
 
-        # 1. Mode Selection
-        item_m1 = Gtk.MenuItem.new_with_label(f"{'● ' if cur_mode == 1 else '   '}{t('tray_m1', cfg)}")
-        item_m1.connect("activate", lambda _: self.switch_mode(1))
+        # 1. 4 Modes Selection
+        item_m1 = Gtk.MenuItem.new_with_label(f"{'● ' if cur_mode == 'linux-only' else '   '}{t('tray_linux_only', cfg)}")
+        item_m1.connect("activate", lambda _: self.switch_mode("linux-only"))
         self.menu.append(item_m1)
 
-        item_m2 = Gtk.MenuItem.new_with_label(f"{'● ' if cur_mode == 2 else '   '}{t('tray_m2', cfg)}")
-        item_m2.connect("activate", lambda _: self.switch_mode(2))
+        item_m2 = Gtk.MenuItem.new_with_label(f"{'● ' if cur_mode == 'linux-win' else '   '}{t('tray_linux_win', cfg)}")
+        item_m2.connect("activate", lambda _: self.switch_mode("linux-win"))
         self.menu.append(item_m2)
 
-        item_m3 = Gtk.MenuItem.new_with_label(f"{'● ' if cur_mode == 3 else '   '}{t('tray_m3', cfg)}")
-        item_m3.connect("activate", lambda _: self.switch_mode(3))
+        item_m3 = Gtk.MenuItem.new_with_label(f"{'● ' if cur_mode == 'win-only' else '   '}{t('tray_win_only', cfg)}")
+        item_m3.connect("activate", lambda _: self.switch_mode("win-only"))
         self.menu.append(item_m3)
+
+        item_m4 = Gtk.MenuItem.new_with_label(f"{'● ' if cur_mode == 'terminal-only' else '   '}{t('tray_terminal_only', cfg)}")
+        item_m4.connect("activate", lambda _: self.switch_mode("terminal-only"))
+        self.menu.append(item_m4)
 
         self.menu.append(Gtk.SeparatorMenuItem())
 
@@ -89,7 +93,7 @@ class ScreenMatrixTray:
         pos_menu_item.set_submenu(pos_submenu)
         self.menu.append(pos_menu_item)
 
-        # 3. Mode 3 Audio Submenu
+        # 3. win-only Audio Submenu
         audio_menu_item = Gtk.MenuItem.new_with_label(t("tray_audio_menu", cfg))
         audio_submenu = Gtk.Menu()
 
@@ -150,9 +154,9 @@ class ScreenMatrixTray:
         else:
             self.status_icon.set_from_icon_name(icon_name)
 
-    def switch_mode(self, mode_num):
-        self.config["mode"] = mode_num
-        apply_mode(mode_num, self.config)
+    def switch_mode(self, mode_name):
+        self.config["mode"] = mode_name
+        apply_mode(mode_name, self.config)
         self.update_icon()
         self.build_menu()
 
@@ -160,15 +164,16 @@ class ScreenMatrixTray:
         self.config["secondary_position"] = pos
         self.config["mac_position"] = pos
         save_config(self.config)
-        if self.config.get("mode") in [1, 2]:
-            apply_mode(self.config.get("mode"), self.config)
+        cur = normalize_mode(self.config.get("mode"))
+        if cur in ["linux-only", "linux-win", "terminal-only"]:
+            apply_mode(cur, self.config)
         self.build_menu()
 
     def set_audio(self, audio_policy):
         self.config["mode3_audio"] = audio_policy
         save_config(self.config)
-        if self.config.get("mode") == 3:
-            apply_mode(3, self.config)
+        if normalize_mode(self.config.get("mode")) == "win-only":
+            apply_mode("win-only", self.config)
         self.build_menu()
 
     def set_language(self, lang):
@@ -179,8 +184,8 @@ class ScreenMatrixTray:
     def toggle_win_key(self, widget):
         self.config["capture_win_key"] = widget.get_active()
         save_config(self.config)
-        if self.config.get("mode") == 3:
-            apply_mode(3, self.config)
+        if normalize_mode(self.config.get("mode")) == "win-only":
+            apply_mode("win-only", self.config)
 
     def open_control_panel(self, _):
         import subprocess

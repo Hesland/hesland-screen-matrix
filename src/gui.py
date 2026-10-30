@@ -4,7 +4,7 @@ import gi
 gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk
 
-from .config import load_config, save_config
+from .config import load_config, save_config, normalize_mode
 from .core import apply_mode
 from .i18n import t
 
@@ -14,7 +14,7 @@ class ControlPanelWindow(Gtk.Window):
         self.config = load_config()
         self.set_title(t("app_title", self.config))
         self.set_border_width(18)
-        self.set_default_size(540, 640)
+        self.set_default_size(560, 680)
         self.set_position(Gtk.WindowPosition.CENTER)
 
         self.main_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=15)
@@ -22,7 +22,6 @@ class ControlPanelWindow(Gtk.Window):
         self.render_ui()
 
     def render_ui(self):
-        # 清除所有子组件，支持即时语言重绘
         for child in self.main_box.get_children():
             self.main_box.remove(child)
 
@@ -54,28 +53,32 @@ class ControlPanelWindow(Gtk.Window):
         self.main_box.pack_start(header_box, False, False, 0)
         self.main_box.pack_start(Gtk.Separator(orientation=Gtk.Orientation.HORIZONTAL), False, False, 0)
 
-        # 2. Mode Cards
+        # 2. 4 Mode Cards
         mode_frame = Gtk.Frame(label=t("core_modes", cfg))
         mode_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         mode_box.set_border_width(12)
         mode_frame.add(mode_box)
         self.main_box.pack_start(mode_frame, False, False, 0)
 
-        self.mode_btn1 = Gtk.RadioButton.new_with_label(None, t("mode1_label", cfg))
-        self.mode_btn2 = Gtk.RadioButton.new_with_label_from_widget(self.mode_btn1, t("mode2_label", cfg))
-        self.mode_btn3 = Gtk.RadioButton.new_with_label_from_widget(self.mode_btn1, t("mode3_label", cfg))
+        self.mode_btn1 = Gtk.RadioButton.new_with_label(None, t("mode_linux_only", cfg))
+        self.mode_btn2 = Gtk.RadioButton.new_with_label_from_widget(self.mode_btn1, t("mode_linux_win", cfg))
+        self.mode_btn3 = Gtk.RadioButton.new_with_label_from_widget(self.mode_btn1, t("mode_win_only", cfg))
+        self.mode_btn4 = Gtk.RadioButton.new_with_label_from_widget(self.mode_btn1, t("mode_terminal_only", cfg))
 
-        cur_mode = cfg.get("mode", 1)
-        if cur_mode == 1:
+        cur_mode = normalize_mode(cfg.get("mode"))
+        if cur_mode == "linux-only":
             self.mode_btn1.set_active(True)
-        elif cur_mode == 2:
+        elif cur_mode == "linux-win":
             self.mode_btn2.set_active(True)
-        else:
+        elif cur_mode == "win-only":
             self.mode_btn3.set_active(True)
+        else:
+            self.mode_btn4.set_active(True)
 
         mode_box.pack_start(self.mode_btn1, False, False, 0)
         mode_box.pack_start(self.mode_btn2, False, False, 0)
         mode_box.pack_start(self.mode_btn3, False, False, 0)
+        mode_box.pack_start(self.mode_btn4, False, False, 0)
 
         # 3. Placement
         pos_frame = Gtk.Frame(label=t("topology_label", cfg))
@@ -96,7 +99,7 @@ class ControlPanelWindow(Gtk.Window):
         pos_box.pack_start(self.pos_right, False, False, 0)
         pos_box.pack_start(self.pos_left, False, False, 0)
 
-        # 4. Mode 3 Options
+        # 4. win-only Advanced Options
         m3_frame = Gtk.Frame(label=t("mode3_adv", cfg))
         m3_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         m3_box.set_border_width(12)
@@ -128,7 +131,7 @@ class ControlPanelWindow(Gtk.Window):
         self.win_key_check.set_active(cfg.get("capture_win_key", True))
         m3_box.pack_start(self.win_key_check, False, False, 0)
 
-        # 5. Buttons
+        # 5. Bottom Buttons
         btn_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
         btn_box.set_halign(Gtk.Align.END)
         self.main_box.pack_end(btn_box, False, False, 0)
@@ -154,11 +157,13 @@ class ControlPanelWindow(Gtk.Window):
 
     def on_apply_clicked(self, _):
         if self.mode_btn1.get_active():
-            new_mode = 1
+            new_mode = "linux-only"
         elif self.mode_btn2.get_active():
-            new_mode = 2
+            new_mode = "linux-win"
+        elif self.mode_btn3.get_active():
+            new_mode = "win-only"
         else:
-            new_mode = 3
+            new_mode = "terminal-only"
 
         new_pos = "right" if self.pos_right.get_active() else "left"
 
