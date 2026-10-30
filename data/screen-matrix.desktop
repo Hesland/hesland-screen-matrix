@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=ScreenMatrix 控制面板
+Name[zh_CN]=ScreenMatrix 屏幕协同中枢
+Comment=跨机双系统三模屏幕调度与控制面板
+Exec=/home/hesland/.local/bin/screen-matrix --gui
+Icon=video-display
+Terminal=false
+Type=Application
+Categories=Settings;HardwareSettings;
+Keywords=screen;display;moonlight;barrier;monitor;

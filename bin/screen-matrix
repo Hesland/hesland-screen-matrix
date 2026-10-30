@@ -1,0 +1,109 @@
+#!/usr/bin/env python3
+import sys
+import os
+import argparse
+import json
+
+PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+sys.path.insert(0, PROJECT_DIR)
+
+from src.config import load_config, save_config
+from src.core import apply_mode, cycle_mode
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Hesland ScreenMatrix: Cross-System Dual-PC Multi-Screen Hub CLI (Designed for Linux Mint)",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  screen-matrix 1                  # Mode 1: Linux Mint native dual-screen (3440x1440 60Hz)
+  screen-matrix 2                  # Mode 2: Native dual-OS KVM (Windows 240Hz + Barrier share)
+  screen-matrix 3                  # Mode 3: Linux Mint as Windows extended screen (Moonlight stream)
+  screen-matrix cycle              # Cycle modes: 1 -> 2 -> 3 -> 1 (Bound to Ctrl+Alt+M)
+  screen-matrix toggle             # Toggle between Mode 1 and Mode 2 (Bound to Super+F12)
+  screen-matrix --pos right        # Place Linux Mint screen on the RIGHT of Ultrawide display
+  screen-matrix --pos left         # Place Linux Mint screen on the LEFT of Ultrawide display
+  screen-matrix --audio windows    # Mode 3: Lock audio strictly to Windows physical speakers
+  screen-matrix --win-key on       # Mode 3: Forward Win key directly into Windows session
+  screen-matrix --lang en          # Set UI/Notification language to English (default)
+  screen-matrix --lang zh          # Set UI/Notification language to Chinese
+  screen-matrix --gui              # Open graphical GTK control panel
+  screen-matrix --tray             # Launch system tray applet daemon
+  screen-matrix --status           # Display current configuration JSON
+"""
+    )
+    parser.add_argument("mode", nargs="?", choices=["1", "2", "3", "cycle", "toggle"], help="Target mode (1: Dual Linux Mint, 2: KVM Share, 3: Extended Stream, cycle: Rotate, toggle: Flip)")
+    parser.add_argument("--pos", choices=["right", "left", "toggle"], help="Physical placement of Linux Mint display relative to Ultrawide")
+    parser.add_argument("--audio", choices=["windows", "mac", "both"], help="Mode 3 audio strategy (windows: Windows speakers only, both: Dual-device, mac: Linux Mint speaker only)")
+    parser.add_argument("--win-key", choices=["on", "off"], help="Mode 3 Windows key forwarding switch")
+    parser.add_argument("--lang", choices=["en", "zh"], help="Set language: en (English) or zh (Chinese)")
+    parser.add_argument("--gui", action="store_true", help="Launch graphical control panel window")
+    parser.add_argument("--tray", action="store_true", help="Launch system tray applet daemon")
+    parser.add_argument("--status", action="store_true", help="Print current status JSON")
+
+    args = parser.parse_args()
+    cfg = load_config()
+
+    if args.gui:
+        from src.gui import main as gui_main
+        gui_main()
+        return
+
+    if args.tray:
+        from src.tray import main as tray_main
+        tray_main()
+        return
+
+    if args.status:
+        print("=== Hesland ScreenMatrix Current Status ===")
+        print(json.dumps(cfg, indent=4, ensure_ascii=False))
+        return
+
+    config_changed = False
+
+    if args.lang:
+        cfg["lang"] = args.lang
+        config_changed = True
+        print(f"✅ Language set to: {args.lang}")
+
+    if args.pos:
+        cur = cfg.get("secondary_position", cfg.get("mac_position", "right"))
+        if args.pos == "toggle":
+            new_pos = "left" if cur == "right" else "right"
+        else:
+            new_pos = args.pos
+        cfg["secondary_position"] = new_pos
+        cfg["mac_position"] = new_pos
+        config_changed = True
+        print(f"✅ Linux Mint display placement set to: 【{new_pos.upper()}】")
+
+    if args.audio:
+        mapping = {"windows": "windows_only", "mac": "mac_only", "both": "both"}
+        cfg["mode3_audio"] = mapping[args.audio]
+        config_changed = True
+        print(f"✅ Mode 3 audio strategy set to: 【{mapping[args.audio]}】")
+
+    if args.win_key:
+        cfg["capture_win_key"] = (args.win_key == "on")
+        config_changed = True
+        print(f"✅ Win key forwarding set to: 【{cfg['capture_win_key']}】")
+
+    if config_changed:
+        save_config(cfg)
+
+    if args.mode:
+        if args.mode == "cycle":
+            cycle_mode()
+        elif args.mode == "toggle":
+            cur = cfg.get("mode", 1)
+            next_m = 2 if cur == 1 else 1
+            apply_mode(next_m, cfg)
+        else:
+            apply_mode(int(args.mode), cfg)
+    elif config_changed:
+        apply_mode(cfg.get("mode", 1), cfg)
+    else:
+        parser.print_help()
+
+if __name__ == "__main__":
+    main()
